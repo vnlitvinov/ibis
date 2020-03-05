@@ -165,12 +165,12 @@ class OmniSciDBDataType:
             if the given data type was not implemented.
         """
         dtype_ = type(dtype)
-        for dct in (cls.encoded_ibis_dtypes, cls.ibis_dtypes):
+        for t in (type(dtype), dtype):
             try:
-                encoding, typename = dct[dtype_]
+                encoding, typename = cls.encoded_ibis_dtypes[t]
             except KeyError:
                 try:
-                    typename = dct[dtype]
+                    typename = cls.ibis_dtypes[t]
                 except KeyError:
                     continue
                 encoding = 'NONE'
