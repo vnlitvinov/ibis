@@ -30,7 +30,8 @@ _sql_type_names = {
     'multipolygon': 'multipolygon',
     'point': 'point',
     'polygon': 'polygon',
-    'string': 'text',
+    'string': 'text encoding none',
+    'category': 'text encoding dict',
     'time': 'time',
     'timestamp': 'timestamp',
 }
@@ -56,6 +57,8 @@ def _cast(translator, expr):
     op = expr.op()
     arg, target = op.args
     arg_ = translator.translate(arg)
+
+    # FIXME: add casting category -> int, maybe not here but somewhere
 
     if isinstance(arg, ir.GeoSpatialValue):
         # NOTE: CastToGeography expects geometry with SRID=4326

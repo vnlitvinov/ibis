@@ -7,7 +7,8 @@ import pymapd
 import regex as re
 from pymapd._parsers import _extract_column_details
 from pymapd.cursor import Cursor
-from pymapd.dtypes import TDatumType as pymapd_dtype
+from pymapd.dtypes import TDatumType as pymapd_datumtype
+from omnisci.common.ttypes import TEncodingType as pymapd_encodingtype
 
 import ibis.common.exceptions as com
 import ibis.expr.datatypes as dt
@@ -62,11 +63,14 @@ class PyMapDVersionError(Exception):
 class OmniSciDBDataType:
     """OmniSciDB Backend Data Type."""
 
-    __slots__ = 'typename', 'nullable'
+    __slots__ = 'typename', 'nullable', 'encoding'
 
     # using impala.client._HS2_TTypeId_to_dtype as reference
     # NOTE: any updates here should be reflected to
     #       omniscidb.operations._sql_type_names
+    encoded_dtypes = {
+        ('DICT', 'STR'): dt.category,
+    }
     dtypes = {
         'BIGINT': dt.int64,
         'BOOL': dt.Boolean,
@@ -89,39 +93,13 @@ class OmniSciDBDataType:
     }
 
     ibis_dtypes = {v: k for k, v in dtypes.items()}
+    encoded_ibis_dtypes = {v: k for k, v in encoded_dtypes.items()}
 
-    # NOTE: any updates here should be reflected to
-    #       omniscidb.operations._sql_type_names
-    _omniscidb_to_ibis_dtypes = {
-        'BIGINT': 'int64',
-        'BOOLEAN': 'Boolean',
-        'BOOL': 'Boolean',
-        'CHAR': 'string',
-        'DATE': 'date',
-        'DECIMAL': 'decimal',
-        'DOUBLE': 'double',
-        'INT': 'int32',
-        'INTEGER': 'int32',
-        'FLOAT': 'float32',
-        'NUMERIC': 'float64',
-        'REAL': 'float32',
-        'SMALLINT': 'int16',
-        'STR': 'string',
-        'TEXT': 'string',
-        'TIME': 'time',
-        'TIMESTAMP': 'timestamp',
-        'TINYINT': 'int8',
-        'VARCHAR': 'string',
-        'POINT': 'point',
-        'LINESTRING': 'linestring',
-        'POLYGON': 'polygon',
-        'MULTIPOLYGON': 'multipolygon',
-    }
-
-    def __init__(self, typename, nullable=True):
+    def __init__(self, typename, encoding, nullable=True):
         if typename not in self.dtypes:
             raise com.UnsupportedBackendType(typename)
         self.typename = typename
+        self.encoding = encoding or 'NONE'
         self.nullable = nullable
 
     def __str__(self):
@@ -133,24 +111,25 @@ class OmniSciDBDataType:
 
     def __repr__(self):
         """Return the backend name and the datatype name."""
-        return '<OmniSciDB {}>'.format(str(self))
+        return '<OmniSciDB {}, encode={}>'.format(str(self), self.encoding)
 
     @classmethod
-    def parse(cls, spec: str):
+    def parse(cls, spec: str, encoding: str):
         """Return a OmniSciDBDataType related to the given data type name.
 
         Parameters
         ----------
         spec : string
+        encoding: string, usually 'NONE'
 
         Returns
         -------
         OmniSciDBDataType
         """
         if spec.startswith('Nullable'):
-            return cls(spec[9:-1], nullable=True)
+            return cls(spec[9:-1], encoding, nullable=True)
         else:
-            return cls(spec)
+            return cls(spec, encoding)
 
     def to_ibis(self):
         """
@@ -160,7 +139,11 @@ class OmniSciDBDataType:
         -------
         ibis.expr.datatypes.DataType
         """
-        return self.dtypes[self.typename](nullable=self.nullable)
+        try:
+            ibis_type = self.encoded_dtypes[(self.encoding, self.typename)]
+        except KeyError:
+            ibis_type = self.dtypes[self.typename]
+        return ibis_type(nullable=self.nullable)
 
     @classmethod
     def from_ibis(cls, dtype, nullable=None):
@@ -182,16 +165,22 @@ class OmniSciDBDataType:
             if the given data type was not implemented.
         """
         dtype_ = type(dtype)
-        if dtype_ in cls.ibis_dtypes:
-            typename = cls.ibis_dtypes[dtype_]
-        elif dtype in cls.ibis_dtypes:
-            typename = cls.ibis_dtypes[dtype]
+        for dct in (cls.encoded_ibis_dtypes, cls.ibis_dtypes):
+            try:
+                encoding, typename = dct[dtype_]
+            except KeyError:
+                try:
+                    typename = dct[dtype]
+                except KeyError:
+                    continue
+                encoding = 'NONE'
+            break
         else:
             raise NotImplementedError('{} dtype not implemented'.format(dtype))
 
         if nullable is None:
             nullable = dtype.nullable
-        return cls(typename, nullable=nullable)
+        return cls(typename, encoding, nullable=nullable)
 
 
 class OmniSciDBDefaultCursor:
@@ -250,12 +239,12 @@ class OmniSciDBGeoCursor(OmniSciDBDefaultCursor):
 
         # get geo types from pymapd
         geotypes = (
-            pymapd_dtype.POINT,
-            pymapd_dtype.LINESTRING,
-            pymapd_dtype.POLYGON,
-            pymapd_dtype.MULTIPOLYGON,
-            pymapd_dtype.GEOMETRY,
-            pymapd_dtype.GEOGRAPHY,
+            pymapd_datumtype.POINT,
+            pymapd_datumtype.LINESTRING,
+            pymapd_datumtype.POLYGON,
+            pymapd_datumtype.MULTIPOLYGON,
+            pymapd_datumtype.GEOMETRY,
+            pymapd_datumtype.GEOGRAPHY,
         )
 
         geo_column = None
@@ -597,7 +586,7 @@ class OmniSciDBClient(SQLClient):
         for col in descr:
             names.append(col.name)
             adapted_types.append(
-                OmniSciDBDataType._omniscidb_to_ibis_dtypes[col.type]
+                OmniSciDBDataType.parse(col.type, col.encoding).to_ibis()
             )
         return names, adapted_types
 
@@ -649,12 +638,13 @@ class OmniSciDBClient(SQLClient):
         result = self.con._client.sql_validate(self.con._session, query)
         return sch.Schema.from_tuples(
             (
-                r,
-                OmniSciDBDataType._omniscidb_to_ibis_dtypes[
-                    pymapd_dtype._VALUES_TO_NAMES[result[r].col_type.type]
-                ],
+                col_name,
+                OmniSciDBDataType.parse(
+                    pymapd_datumtype._VALUES_TO_NAMES[col_descr.col_type.type],
+                    pymapd_encodingtype._VALUES_TO_NAMES[col_descr.col_type.encoding]
+                ).to_ibis(),
             )
-            for r in result
+            for col_name, col_descr in result.items()
         )
 
     def _get_table_schema(self, table_name, database=None):
@@ -1199,14 +1189,9 @@ class OmniSciDBClient(SQLClient):
 
         for col in self.con.get_table_details(table_name):
             col_names.append(col.name)
-            col_types.append(OmniSciDBDataType.parse(col.type))
+            col_types.append(OmniSciDBDataType.parse(col.type, col.encoding))
 
-        return sch.schema(
-            [
-                (col.name, OmniSciDBDataType.parse(col.type))
-                for col in self.con.get_table_details(table_name)
-            ]
-        )
+        return sch.schema(zip(col_names, col_types))
 
     def sql(self, query: str):
         """
