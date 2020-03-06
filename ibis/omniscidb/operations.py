@@ -58,7 +58,7 @@ def _cast(translator, expr):
     arg, target = op.args
     arg_ = translator.translate(arg)
 
-    if isinstance(arg, dt.Category) and isinstance(target, dt.Integer):
+    if isinstance(arg.type(), dt.Category) and isinstance(target, dt.Integer):
         arg_ = 'key_for_string({0!s})'.format(arg_)
         # short-circuit casting to int32
         if isinstance(target, dt.Int32):
