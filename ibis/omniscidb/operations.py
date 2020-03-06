@@ -58,7 +58,11 @@ def _cast(translator, expr):
     arg, target = op.args
     arg_ = translator.translate(arg)
 
-    # FIXME: add casting category -> int, maybe not here but somewhere
+    if isinstance(arg, dt.Category) and isinstance(target, dt.Integer):
+        arg_ = 'key_for_string({0!s})'.format(arg_)
+        # short-circuit casting to int32
+        if isinstance(target, dt.Int32):
+            return arg_
 
     if isinstance(arg, ir.GeoSpatialValue):
         # NOTE: CastToGeography expects geometry with SRID=4326
