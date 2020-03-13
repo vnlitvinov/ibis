@@ -1,5 +1,6 @@
 """Ibis OmniSciDB Client."""
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
 import pandas as pd
 import pkg_resources
@@ -408,6 +409,46 @@ class OmniSciDBTable(ir.TableExpr, DatabaseEntity):
         query : OmniSciDBQuery
         """
         stmt = ddl.LoadData(self._qualified_name, df)
+        return self._execute(stmt)
+
+    def read_csv(
+        self,
+        path: Union[str, Path],
+        header: Optional[bool] = True,
+        quotechar: Optional[str] = '"',
+        delimiter: Optional[str] = ',',
+        threads: Optional[int] = None,
+    ):
+        """
+        Load data into an Omniscidb table from CSV file.
+
+        Wraps the COPY FROM DML statement.
+
+        Parameters
+        ----------
+        path: str or pathlib.Path
+          Path to the input data file
+        header: bool, optional, default True
+          Indicating whether the input file has a header line
+        quotechar: str, optional, default '"'
+          The character used to denote the start and end of a quoted item.
+        delimiter: str, optional, default ','
+        threads: int, optional, default number of CPU cores on the system
+          Number of threads for performing the data import.
+
+        Returns
+        -------
+        query : OmniSciDBQuery
+        """
+        kwargs = {
+            'header': header,
+            # 'quote' field couldn't be empty string for omnisci backend
+            'quote': quotechar if quotechar else '"',
+            'quoted': bool(quotechar),
+            'delimiter': delimiter,
+            'threads': threads,
+        }
+        stmt = ddl.LoadData(self._qualified_name, path, **kwargs)
         return self._execute(stmt)
 
     @property

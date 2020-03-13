@@ -525,3 +525,30 @@ class InsertPandas(OmniSciDBDML):
     def compile(self):
         """Compile the Insert expression."""
         return '\n'.join(self.pieces)
+
+
+class LoadData(OmniSciDBDDL):
+    """Generate DDL for LOAD DATA command. Cannot be cancelled."""
+
+    def __init__(self, table_name, source, **kwargs):
+        self.table_name = table_name
+        self.source = source
+        self.options = kwargs
+
+    def _get_options(self):
+        with_stmt = ','.join(
+            [
+                '{}={}'.format(
+                    i, "'{}'".format(v) if isinstance(v, (str, bool)) else v
+                )
+                for i, v in self.options.items()
+                if v is not None
+            ]
+        )
+        return ' WITH ({})'.format(with_stmt)
+
+    def compile(self):
+        """Compile the LoadData expression."""
+        return "COPY {} FROM '{}' {}".format(
+            self.table_name, self.source, self._get_options()
+        )
