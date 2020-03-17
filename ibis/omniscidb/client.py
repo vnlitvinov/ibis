@@ -957,6 +957,23 @@ class OmniSciDBClient(SQLClient):
         self._execute(statement, False)
         self.set_database(_database)
 
+    def create_table_from_csv(
+        self, table_name, csv_file, schema, database=None, max_rows=None
+    ):
+        _database = self.db_name
+        self.set_database(database)
+
+        if schema is not None:
+            statement = ddl.CreateTableFromCsv(
+                table_name, schema, csv_file, database=database, max_rows=max_rows
+            )
+        else:
+            raise com.IbisError('Must pass expr or schema')
+
+        self._execute(statement, False)
+        self.set_database(_database)
+
+
     def drop_table(self, table_name, database=None, force=False):
         """
         Drop a given table.
