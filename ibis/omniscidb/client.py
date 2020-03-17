@@ -385,10 +385,6 @@ class OmniSciDBTable(ir.TableExpr, DatabaseEntity):
 
     describe_formatted = metadata
 
-    def drop(self):
-        """Drop the table from the database."""
-        self._client.drop_table_or_view(self._qualified_name)
-
     def truncate(self):
         """Delete all rows from, but do not drop, an existing table."""
         self._client.truncate_table(self._qualified_name)
@@ -418,7 +414,7 @@ class OmniSciDBTable(ir.TableExpr, DatabaseEntity):
         quotechar: Optional[str] = '"',
         delimiter: Optional[str] = ',',
         threads: Optional[int] = None,
-    ):
+    ) -> OmniSciDBQuery:
         """
         Load data into an Omniscidb table from CSV file.
 
@@ -439,6 +435,51 @@ class OmniSciDBTable(ir.TableExpr, DatabaseEntity):
         Returns
         -------
         query : OmniSciDBQuery
+
+        Examples
+        --------
+        # assumptions:
+        #   - dataset can be found on ./datasets/functional_alltypes.csv
+        #       https://github.com/ibis-project/testing-data/blob/master/functional_alltypes.csv
+        #   - omnisci server is launched on localhost and using port: 6274
+
+        import ibis
+
+        conn = ibis.omniscidb.connect(
+            host="localhost",
+            port="6274",
+            user="admin",
+            password="HyperInteractive",
+        )
+
+        t_name = "functional_alltypes"
+        db_name = "ibis_testing"
+        filename = "./datasets/functional_alltypes.csv"
+
+        schema = ibis.schema(
+            [
+                ('index', 'int64'),
+                ('Unnamed__0', 'int64'),
+                ('id', 'int32'),
+                ('bool_col', 'bool'),
+                ('tinyint_col', 'int16'),
+                ('smallint_col', 'int16'),
+                ('int_col', 'int32'),
+                ('bigint_col', 'int64'),
+                ('float_col', 'float32'),
+                ('double_col', 'double'),
+                ('date_string_col', 'string'),
+                ('string_col', 'string'),
+                ('timestamp_col', 'timestamp'),
+                ('year_', 'int32'),
+                ('month_', 'int32'),
+            ]
+        )
+        conn.create_table(t_name, schema=schema)
+
+        db = conn.database(db_name)
+        table = db.table(t_name)
+        table.read_csv(filename, header=False, quotechar='"', delimiter=",")
         """
         kwargs = {
             'header': header,
