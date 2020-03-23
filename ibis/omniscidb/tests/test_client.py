@@ -162,6 +162,7 @@ def test_explain(con, alltypes):
         pathlib.Path("/omnisci/test_read_csv.csv"),
     ],
 )
+@pytest.mark.skip("don't use full path")
 def test_read_csv(con, temp_table, filename):
     schema = ibis.schema(
         [
