@@ -2,7 +2,14 @@ import numpy as np
 import pytest
 from pytest import param
 
-from ibis.tests.backends import Clickhouse, MySQL, PostgreSQL, PySpark, SQLite
+from ibis.tests.backends import (
+    Clickhouse,
+    MySQL,
+    OmniSciDB,
+    PostgreSQL,
+    PySpark,
+    SQLite,
+)
 
 
 @pytest.mark.parametrize(
@@ -197,7 +204,7 @@ def test_topk_op(backend, alltypes, df, result_fn, expected_fn):
 @pytest.mark.xfail_unsupported
 # Issues #2133 #2132# #2133
 @pytest.mark.xfail_backends([Clickhouse, MySQL, PostgreSQL])
-@pytest.mark.skip_backends([SQLite], reason='Issue #2128')
+@pytest.mark.skip_backends([SQLite, OmniSciDB], reason='Issue #2128')
 def test_topk_filter_op(backend, alltypes, df, result_fn, expected_fn):
     # TopK expression will order rows by "count" but each backend
     # can have different result for that.
