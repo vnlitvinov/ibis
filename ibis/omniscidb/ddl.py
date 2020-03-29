@@ -164,6 +164,18 @@ class CreateTableWithSchema(CreateTable):
         if with_stmt:
             yield ' WITH ({})'.format(with_stmt)
 
+class CreateTableFromCsv(CreateTableWithSchema):
+    def __init__(self, table_name, schema, csv_file, database=None, max_rows=None):
+        super().__init__(table_name, schema, database, max_rows)
+        self.csv_file = csv_file
+
+    @property
+    def _prefix(self):
+        return 'CREATE TEMPORARY TABLE'
+
+    @property
+    def with_params(self):
+        return dict(max_rows=self.max_rows, storage_type='CSV:{}'.format(self.csv_file))
 
 class CTAS(CreateTable):
     """Create Table As Select."""

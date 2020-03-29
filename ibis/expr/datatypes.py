@@ -869,6 +869,7 @@ _primitive_types = [
     ('halffloat', float16),
     ('double', double),
     ('string', string),
+    ('category', category),
     ('binary', binary),
     ('date', date),
     ('time', time),
