@@ -185,11 +185,13 @@ def test_explain(con, alltypes):
 @pytest.mark.parametrize(
     'filename',
     [
-        "/omnisci/test_read_csv.csv",
-        pathlib.Path("/omnisci/test_read_csv.csv"),
+        # FIXME: that path is only vaild for Linux-like systems,
+        # should generalize path to temp directory that would be
+        # valid at any platform (dependends on OS where omnisci is running)
+        "/tmp/test_read_csv.csv",
+        pathlib.Path("/tmp/test_read_csv.csv"),
     ],
 )
-@pytest.mark.skip("don't use full path")
 def test_read_csv(con, temp_table, filename):
     schema = ibis.schema(
         [
