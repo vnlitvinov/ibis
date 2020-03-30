@@ -154,9 +154,10 @@ class CreateTableWithSchema(CreateTable):
             yield ' WITH ({})'.format(with_stmt)
 
 class CreateTableFromCsv(CreateTableWithSchema):
-    def __init__(self, table_name, schema, csv_file, database=None, max_rows=None):
+    def __init__(self, table_name, schema, csv_file, database=None, max_rows=None, fragment_size=None):
         super().__init__(table_name, schema, database, max_rows)
         self.csv_file = csv_file
+        self.fragment_size = fragment_size
 
     @property
     def _prefix(self):
@@ -164,7 +165,10 @@ class CreateTableFromCsv(CreateTableWithSchema):
 
     @property
     def with_params(self):
-        return dict(max_rows=self.max_rows, storage_type='CSV:{}'.format(self.csv_file))
+        result = dict(max_rows=self.max_rows, storage_type='CSV:{}'.format(self.csv_file))
+        if self.fragment_size is not None:
+            result['FRAGMENT_SIZE'] = self.fragment_size
+        return result
 
 class CTAS(CreateTable):
     """Create Table As Select."""
